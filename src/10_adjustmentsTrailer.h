@@ -6,8 +6,10 @@
  * You can use a 2nd, identical controller in your trailer. Of course, it doesn't need an amplifier or a receiver.
  */
 
-//#define WIRELESS_TRAILER // Disable it, if no wireless trailer is used. It may cause noise in the speaker, if no trailer is detected.
-//#define TRAILER_LIGHTS_TRAILER_PRESENCE_SWITCH_DEPENDENT // wireless trailer lights are swiched off, if truck mounted trailer presence switch on pin 32 is closed.
+#define WIRELESS_TRAILER // Disable it, if no wireless trailer is used. It may cause noise in the speaker, if no trailer is detected.
+//#define TRAILER_LIGHTS_TRAILER_PRESENCE_SWITCH_DEPENDENT // Wireless trailer lights are switched on only, if truck mounted trailer presence switch on pin 32 is closed.
+// or (first option takes precedence, if both are enabled)
+#define TRAILER_LIGHTS_5TH_WHEEL_LOCKED_DEPENDENT // Wireless trailer lights are switched on only, if 5th wheel is in locked state.
 
 // IMPORTANT!! Replace the addresses below with your trailers MAC addresses!! --------------------------
 // Trailer 1

@@ -3767,7 +3767,41 @@ void excavatorControl() {
 // =======================================================================================================
 //
 
+// Get current light and/or servo values and copy them to the trailer data container
+void fetchNewTrailerData(bool includeLights = true) {
+
+#if defined WIRELESS_TRAILER
+
+  // Get lights data too? If not: Turn them off
+  if (includeLights) {
+    // Lights (timer number in brackets, not pin number, see LED setup section)
+    trailerData.tailLight = ledcRead(2);
+    trailerData.sideLight = ledcRead(8);
+    trailerData.reversingLight = ledcRead(6);
+    trailerData.indicatorL = ledcRead(3);
+    trailerData.indicatorR = ledcRead(4);
+  } else {
+    trailerData.tailLight = 0;
+    trailerData.sideLight = 0;
+    trailerData.reversingLight = 0;
+    trailerData.indicatorL = 0;
+    trailerData.indicatorR = 0;  
+  }
+  // Always get the following data
+  trailerData.legsUp = legsUp;
+  trailerData.legsDown = legsDown;
+  trailerData.rampsUp = rampsUp;
+  trailerData.rampsDown = rampsDown;
+  trailerData.beaconsOn = blueLightTrigger;
+
+#endif
+
+} // fetchNewTrailerData()
+
+
+// Send new data to trailer using ESP-NOW
 void trailerControl() {
+  
 #if defined WIRELESS_TRAILER
 
   static unsigned long espNowMillis;
@@ -3798,38 +3832,31 @@ void trailerControl() {
     rampsdownOld = trailerData.rampsDown;
     beaconsOnOld = trailerData.beaconsOn;
 
-    // Set values to send 
-    // Lights (timer number in brackets, not pin number, see LED setup section)
-#ifdef TRAILER_LIGHTS_TRAILER_PRESENCE_SWITCH_DEPENDENT // Tralier lights depending on truck mounted switch
-if (trailerDetected) {
-    trailerData.tailLight = ledcRead(2);
-    trailerData.sideLight = ledcRead(8);
-    trailerData.reversingLight = ledcRead(6);
-    trailerData.indicatorL = ledcRead(3);
-    trailerData.indicatorR = ledcRead(4);
-}
-else {
-    trailerData.tailLight = 0;
-    trailerData.sideLight = 0;
-    trailerData.reversingLight = 0;
-    trailerData.indicatorL = 0;
-    trailerData.indicatorR = 0;
-}
-#else // Trailer lights always on
-    trailerData.tailLight = ledcRead(2);
-    trailerData.sideLight = ledcRead(8);
-    trailerData.reversingLight = ledcRead(6);
-    trailerData.indicatorL = ledcRead(3);
-    trailerData.indicatorR = ledcRead(4);
-#endif
-    // Other signals
-    trailerData.legsUp = legsUp;
-    trailerData.legsDown = legsDown;
-    trailerData.rampsUp = rampsUp;
-    trailerData.rampsDown = rampsDown;
-    trailerData.beaconsOn = blueLightTrigger;
+    // Set new values to send 
+#if defined TRAILER_LIGHTS_TRAILER_PRESENCE_SWITCH_DEPENDENT
 
-    // Check, if one or more values have changed (saves battery live, prevents speaker noise and the ESP32 runs cooler)
+    if (trailerDetected) { // Trailer lights depending on truck mounted switch
+        fetchNewTrailerData(true);
+    } else {
+        fetchNewTrailerData(false);
+    }
+
+#elif defined TRAILER_LIGHTS_5TH_WHEEL_LOCKED_DEPENDENT
+
+    if (unlock5thWheel) { // Trailer lights depending on state of 5th wheel lock state
+        fetchNewTrailerData(false);
+    } else {
+        fetchNewTrailerData(true);
+    }
+
+#else // Trailer lights always on
+    
+    fetchNewTrailerData(true);
+
+#endif
+
+    // Check, if one or more values have changed
+    // (Saves battery live, prevents speaker noise and the ESP32 runs cooler)
     if (taillightOld != trailerData.tailLight ||
         sidelightOld != trailerData.sideLight ||
         reversingLightOld != trailerData.reversingLight ||
@@ -3854,9 +3881,9 @@ else {
     }
   }
 
-#endif
+#endif // defined WIRELESS_TRAILER
 
-}
+} // trailerControl()
 
 //
 // =======================================================================================================
