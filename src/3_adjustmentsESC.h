@@ -115,16 +115,24 @@ const uint16_t escReversePlus = 0;
 const uint16_t brakeMargin = 10; // For RZ7886 motor driver and 370 motor = 10
 
 // Battery low discharge protection (only for boards with voltage divider resistors):
-//#define BATTERY_PROTECTION // This will disable the ESC output, if the battery cutout voltage is reached
-const float CUTOFF_VOLTAGE = 3.3; // Usually 3.3 V per LiPo cell. NEVER below 3.2 V!
-const float FULLY_CHARGED_VOLTAGE = 4.2; // Usually 4.2 V per LiPo cell, NEVER above!
-const uint16_t RESISTOR_TO_BATTTERY_PLUS = 9650; // 10000 Ohms (9900 for switch mode test board, 9650 for Ural)
-const uint16_t RESISTOR_TO_GND = 1000; // 1000 Ohms
-const float DIODE_DROP = 0.0; // About 0.34V for SS34 diode (0 for Ural)
+// IMPORTANT: Enter used resistor values in Ohms (Ω) and THEN adjust BATTERY_VOLTAGE_OFFSET, until your readings match the actual battery voltage!
+#define BATTERY_PROTECTION // This will disable the ESC output, if the battery cutout voltage is reached
+
+#define BATTERY_TEST_INTERVAL_SECONDS 3 // Probe battery voltage every ... seconds.
+const float CELL_LOW_CUTOFF_VOLTAGE = 3.4; // For example 3.4 V per LiPo/LiIon cell. LiPo NEVER below 3.2 V!
+const float CELL_FULLY_CHARGED_VOLTAGE = 4.2; // Usually 4.2 V per LiPo/LiIon cell.
+// Note on resistor values: These values will be used to calculate the actual ratio between these two resistors (which is also called a "voltage divider").
+// When selecting resistors, always use two of the same magnitude: Like, for example, 10k/2k, 20k/4k or 100k/20k. NEVER exceed a ratio LOWER than (4:1 = 4)!
+// WARNING: If the ratio is too LOW, like 10k/5k (2:1 = 2), the battery voltage will most likely DAMAGE the controller permanently!
+// Formula: 
+const uint32_t RESISTOR_TO_BATTERY_PLUS = 100650; // Value in Ohms (Ω), for example 10000 (9900 for switch mode test board, 9650 for Ural, 9500 for Landy).
+const uint32_t RESISTOR_TO_GND = 19932; //  Value in Ohms (Ω), for example 1000. Measuring exact resistor values before soldering, if possible, recommended!
+const float BATTERY_VOLTAGE_OFFSET = -0.08; // Fine adjust measured value and/or consider diode voltage drop (about 0.34V for SS34 diode on switch mode board; 0 for Ural & Landy).
+const uint8_t BATTERY_VOLTAGE_AVERAGING_SAMPLES = 6;  // Number of samples to keep/use for averaging the measured voltage over time
 volatile int outOfFuelVolumePercentage = 80; // Adjust the message volume in %
 // Select the out of fuel message you want:
-//#include "vehicles/sounds/OutOfFuelEnglish.h"
-#include "vehicles/sounds/OutOfFuelGerman.h"
+#include "vehicles/sounds/OutOfFuelEnglish.h"
+//#include "vehicles/sounds/OutOfFuelGerman.h"
 //#include "vehicles/sounds/OutOfFuelFrench.h"
 //#include "vehicles/sounds/OutOfFuelDutch.h"
 //#include "vehicles/sounds/OutOfFuelSpanish.h"

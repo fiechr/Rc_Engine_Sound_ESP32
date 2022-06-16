@@ -31,7 +31,7 @@ void readPwmSignals();
 void processRawChannels();
 void failsafeRcSignals();
 void channelZero();
-float batteryVolts();
+float getBatteryVoltage();
 
 //
 // =======================================================================================================
@@ -456,7 +456,7 @@ bool rampsDown;
 bool trailerDetected;
 
 // Battery
-float batteryCutoffvoltage;
+float batteryLowCutoffVoltage;
 float batteryVoltage;
 uint8_t numberOfCells;
 bool batteryProtection = false;
@@ -1396,27 +1396,29 @@ void setupEspNow() {
 void setupBattery() {
 #if defined BATTERY_PROTECTION
 
-  Serial.printf("Battery voltage: %.2f V\n", batteryVolts());
-  Serial.printf("Cutoff voltage per cell: %.2f V\n", CUTOFF_VOLTAGE);
-  Serial.printf("Fully charged voltage per cell: %.2f V\n", FULLY_CHARGED_VOLTAGE);
+  batteryVoltage = getBatteryVoltage();  // Set global battery voltage variable
 
-#define CELL_SETPOINT (CUTOFF_VOLTAGE - ((FULLY_CHARGED_VOLTAGE - CUTOFF_VOLTAGE) /2))
+  Serial.printf("Battery voltage: %.2f V\n", batteryVoltage);
+  Serial.printf("Cutoff voltage per cell: %.2f V\n", CELL_LOW_CUTOFF_VOLTAGE);
+  Serial.printf("Fully charged voltage per cell: %.2f V\n", CELL_FULLY_CHARGED_VOLTAGE);
 
-  if (batteryVolts() <= CELL_SETPOINT * 2) numberOfCells = 1;
-  if (batteryVolts() > CELL_SETPOINT * 2) numberOfCells = 2;
-  if (batteryVolts() > CELL_SETPOINT * 3) numberOfCells = 3;
-  if (batteryVolts() > FULLY_CHARGED_VOLTAGE * 3) numberOfCells = 4;
-  batteryCutoffvoltage = CUTOFF_VOLTAGE * numberOfCells; // Calculate cutoff voltage for battery protection
+#define CELL_SETPOINT_VOLTAGE (CELL_LOW_CUTOFF_VOLTAGE - ((CELL_FULLY_CHARGED_VOLTAGE - CELL_LOW_CUTOFF_VOLTAGE) / 2))
+
+  if (batteryVoltage <= CELL_SETPOINT_VOLTAGE * 2) numberOfCells = 1;
+  if (batteryVoltage > CELL_SETPOINT_VOLTAGE * 2) numberOfCells = 2;
+  if (batteryVoltage > CELL_SETPOINT_VOLTAGE * 3) numberOfCells = 3;
+  if (batteryVoltage > CELL_FULLY_CHARGED_VOLTAGE * 3) numberOfCells = 4;
+  batteryLowCutoffVoltage = CELL_LOW_CUTOFF_VOLTAGE * numberOfCells; // Calculate lower cutoff voltage for battery protection
   if (numberOfCells > 1 && numberOfCells < 4) { // Only 2S & 3S batteries are supported!
-    Serial.printf("Number of cells: %i (%iS battery detected) Based on setpoint: %.2f V\n", numberOfCells, numberOfCells, (CELL_SETPOINT * numberOfCells));
-    Serial.printf("Battery cutoff voltage: %.2f V (%i * %.2f V) \n", batteryCutoffvoltage, numberOfCells, CUTOFF_VOLTAGE);
+    Serial.printf("Number of cells: %i (%iS battery detected), Based on setpoint: %.2f V\n", numberOfCells, numberOfCells, (CELL_SETPOINT_VOLTAGE * numberOfCells));
+    Serial.printf("Battery low cutoff voltage: %.2f V (%i * %.2f V) \n", batteryLowCutoffVoltage, numberOfCells, CELL_LOW_CUTOFF_VOLTAGE);
     for (uint8_t beeps = 0; beeps < numberOfCells; beeps++) { // Number of beeps = number of cells in series
       tone(26, 3000, 4, 0);
       delay(200);
     }
   }
   else {
-    Serial.printf("Error, no valid battery detected! Only 2S & 3S batteries are supported!\n");
+    Serial.printf("Error, NO valid battery detected! Only 2S & 3S batteries are supported!\n");
     Serial.printf("REMOVE BATTERY, CONTROLLER IS LOCKED!\n");
     bool locked = true;
     for (uint8_t beeps = 0; beeps < 10; beeps++) { // Number of beeps = number of cells in series
@@ -3127,15 +3129,15 @@ void esc() {
 #if defined BATTERY_PROTECTION
   static unsigned long lastBatteryTime;
   static bool outOfFuelMessageLock;
-  if (millis() - lastBatteryTime > 300) { // Check battery voltage every 300ms
+  if (millis() - lastBatteryTime > (BATTERY_TEST_INTERVAL_SECONDS * 1000)) { // Check battery voltage every <BATTERY_TEST_INTERVAL_SECONDS> seconds.
     lastBatteryTime = millis();
-    batteryVoltage = batteryVolts(); // Store voltage in global variable (also used in dashboard)
-    if (batteryVoltage < batteryCutoffvoltage) {
-      Serial.printf("Battery protection triggered, slowing down! Battery: %.2f V Threshold: %.2f V \n", batteryVoltage, batteryCutoffvoltage);
-      Serial.printf("Disconnect battery to prevent it from overdischarging!\n", batteryVoltage, batteryCutoffvoltage);
+    batteryVoltage = getBatteryVoltage(); // Update voltage in global variable (also used in dashboard)
+    if (batteryVoltage < batteryLowCutoffVoltage) {
+      Serial.printf("LOW battery protection triggered, slowing down! Battery voltage: %.2f V (Threshold voltage: %.2f V)\n", batteryVoltage, batteryLowCutoffVoltage);
+      Serial.printf("Disconnect battery to prevent it from overdischarging!\n", batteryVoltage, batteryLowCutoffVoltage);
       batteryProtection = true;
     }
-    if (batteryVoltage > batteryCutoffvoltage + (0.05 * numberOfCells)) { // Recovery hysteresis
+    if (batteryVoltage > (batteryLowCutoffVoltage + (0.05 * numberOfCells))) { // Recovery hysteresis
       batteryProtection = false;
     }
     // Out of fuel message triggering
@@ -3414,27 +3416,34 @@ void esc() {
 // =======================================================================================================
 //
 
-float batteryVolts() {
-  static float raw[6];
+float getBatteryVoltage() {
+  static float raw[BATTERY_VOLTAGE_AVERAGING_SAMPLES];
   static bool initDone = false;
-#define VOLTAGE_CALIBRATION (RESISTOR_TO_BATTTERY_PLUS + RESISTOR_TO_GND) / RESISTOR_TO_GND + DIODE_DROP
+#define RESISTOR_RATIO (RESISTOR_TO_BATTERY_PLUS + RESISTOR_TO_GND) / RESISTOR_TO_GND
 
   if (!initDone) { // Init array, if first measurement (important for call in setup)!
-    for (uint8_t i = 0; i <= 5; i++) {
+    for (uint8_t i = 0; i < BATTERY_VOLTAGE_AVERAGING_SAMPLES; i++) {
       raw[i] = battery.readVoltage();
     }
     initDone = true;
   }
 
-  raw[5] = raw[4]; // Move array content, then add latest measurement (averaging)
-  raw[4] = raw[3];
-  raw[3] = raw[2];
-  raw[2] = raw[1];
-  raw[1] = raw[0];
+  for (uint8_t i = (BATTERY_VOLTAGE_AVERAGING_SAMPLES - 1); i > 0; i--) {  // Shift values, discard oldest first
+    raw[i] = raw[i - 1];
+  }
+  raw[0] = battery.readVoltage();  // Add one new value
 
-  raw[0] = battery.readVoltage(); // read analog input
+  float voltage = 0.0;
+  for (uint8_t i = 0; i < BATTERY_VOLTAGE_AVERAGING_SAMPLES; i++) {
+    voltage += raw[i];
+  }
+  voltage /= BATTERY_VOLTAGE_AVERAGING_SAMPLES;
+  voltage *= RESISTOR_RATIO;
+  voltage += BATTERY_VOLTAGE_OFFSET;
 
-  float voltage = (raw[0] + raw[1] + raw[2] + raw[3] + raw[4] + raw[5]) / 6 * VOLTAGE_CALIBRATION;
+  if (voltage < 0.0) {
+    voltage = 0.0;
+  }
   return voltage;
 }
 
@@ -3872,10 +3881,10 @@ void updateDashboard() {
     rpm = currentRpm * 450 / 500 + 50; // Idle rpm offset!
 
 #if defined BATTERY_PROTECTION
-    fuel = map_Generic <float, float, float, int16_t, int16_t> ((batteryVoltage / numberOfCells), CUTOFF_VOLTAGE, FULLY_CHARGED_VOLTAGE, 0, 100);
+    fuel = map_Generic <float, float, float, int16_t, int16_t> ((batteryVoltage / numberOfCells), CELL_LOW_CUTOFF_VOLTAGE, CELL_FULLY_CHARGED_VOLTAGE, 0, 100);
     if (fuel > 100) fuel = 100;
     if (fuel < 0) fuel = 0;
-    if ((batteryVoltage / numberOfCells) < CUTOFF_VOLTAGE) fuel = 0;
+    if ((batteryVoltage / numberOfCells) < CELL_LOW_CUTOFF_VOLTAGE) fuel = 0;
 #else
     fuel = 90;
 #endif
@@ -3905,7 +3914,7 @@ void updateDashboard() {
 
   // Central display
 #if defined BATTERY_PROTECTION
-  dashboard.setVolt(batteryVoltage, CUTOFF_VOLTAGE * numberOfCells);
+  dashboard.setVolt(batteryVoltage, CELL_LOW_CUTOFF_VOLTAGE * numberOfCells);
 #endif
 
   if (neutralGear) {
