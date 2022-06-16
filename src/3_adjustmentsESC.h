@@ -124,7 +124,8 @@ const float CELL_FULLY_CHARGED_VOLTAGE = 4.2; // Usually 4.2 V per LiPo/LiIon ce
 // Note on resistor values: These values will be used to calculate the actual ratio between these two resistors (which is also called a "voltage divider").
 // When selecting resistors, always use two of the same magnitude: Like, for example, 10k/2k, 20k/4k or 100k/20k. NEVER exceed a ratio LOWER than (4:1 = 4)!
 // WARNING: If the ratio is too LOW, like 10k/5k (2:1 = 2), the battery voltage will most likely DAMAGE the controller permanently!
-// Formula: 
+// Example calculation: 2000 / (2000 + 10000) = 0.166 666 666 7; 7.4 V * 0.167 = 1.2358 V (of 3.3 V maximum on GPIO Pin).
+// 
 const uint32_t RESISTOR_TO_BATTERY_PLUS = 100650; // Value in Ohms (Ω), for example 10000 (9900 for switch mode test board, 9650 for Ural, 9500 for Landy).
 const uint32_t RESISTOR_TO_GND = 19932; //  Value in Ohms (Ω), for example 1000. Measuring exact resistor values before soldering, if possible, recommended!
 const float BATTERY_VOLTAGE_OFFSET = -0.08; // Fine adjust measured value and/or consider diode voltage drop (about 0.34V for SS34 diode on switch mode board; 0 for Ural & Landy).

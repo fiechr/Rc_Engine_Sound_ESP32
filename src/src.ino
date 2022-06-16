@@ -3419,7 +3419,7 @@ void esc() {
 float getBatteryVoltage() {
   static float raw[BATTERY_VOLTAGE_AVERAGING_SAMPLES];
   static bool initDone = false;
-#define RESISTOR_RATIO (RESISTOR_TO_BATTERY_PLUS + RESISTOR_TO_GND) / RESISTOR_TO_GND
+#define DIVIDER_FACTOR (RESISTOR_TO_BATTERY_PLUS + RESISTOR_TO_GND) / RESISTOR_TO_GND
 
   if (!initDone) { // Init array, if first measurement (important for call in setup)!
     for (uint8_t i = 0; i < BATTERY_VOLTAGE_AVERAGING_SAMPLES; i++) {
@@ -3438,7 +3438,7 @@ float getBatteryVoltage() {
     voltage += raw[i];
   }
   voltage /= BATTERY_VOLTAGE_AVERAGING_SAMPLES;
-  voltage *= RESISTOR_RATIO;
+  voltage *= DIVIDER_FACTOR;
   voltage += BATTERY_VOLTAGE_OFFSET;
 
   if (voltage < 0.0) {
